@@ -21,43 +21,55 @@
 package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
+import static com.esotericsoftware.tcpserver.Connection.*;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-abstract public class TcpServer {
+abstract public class TcpServer extends Retry {
 	final CopyOnWriteArrayList<Connection> connections = new CopyOnWriteArrayList();
+	private final int port;
+	private ServerSocket server;
 
-	public TcpServer (final String category, final String name, final int port) {
-		new Thread(name) {
-			public void run () {
-				ServerSocket server = null;
+	public TcpServer (String category, String name, int port) {
+		super(category, name);
+		this.port = port;
+	}
+
+	protected void retry () {
+		try {
+			server = new ServerSocket(port);
+			if (INFO) info(category, "Listening on port: " + port);
+			while (running) {
+				Socket socket = server.accept();
+				success();
 				try {
-					server = new ServerSocket(port);
-					if (INFO) info(category, "Listening on port: " + port);
-					while (true) {
-						Socket socket = server.accept();
-						try {
-							ServerConnection connection = new ServerConnection(category, name, socket);
-							connections.add(connection);
-							if (INFO) info(category, "Client connected: " + socket.getInetAddress() + ":" + socket.getPort());
-							connection.start();
-							connected(connection);
-						} catch (Exception ex) {
-							if (ERROR) error(category, "Error configuring client connection.", ex);
-						}
-					}
+					ServerConnection connection = new ServerConnection(category, name, socket);
+					connections.add(connection);
+					if (INFO) info(category, "Client connected: " + socket.getInetAddress() + ":" + socket.getPort());
+					connection.start();
+					connected(connection);
 				} catch (Exception ex) {
-					if (ERROR) error(category, "Unexpected server error.", ex);
-					close();
+					if (ERROR) error(category, "Error configuring client connection.", ex);
 				}
 			}
-		}.start();
+		} catch (Exception ex) {
+			if (ERROR) error(category, "Unexpected server error.", ex);
+			closeQuietly(server);
+			failed();
+		}
+	}
+
+	protected void stopping () {
+		closeQuietly(server);
 	}
 
 	public void connected (Connection connection) {
+	}
+
+	public void disconnected (Connection connection) {
 	}
 
 	public void send (String message) {
@@ -68,8 +80,10 @@ abstract public class TcpServer {
 	abstract public void receive (Connection connection, String event, String payload);
 
 	public void close () {
-		for (Connection connection : connections)
+		for (Connection connection : connections) {
 			connection.close();
+			disconnected(connection);
+		}
 		connections.clear();
 	}
 
@@ -96,18 +110,21 @@ abstract public class TcpServer {
 	static public void main (String[] args) throws Exception {
 		TRACE();
 
-		new TcpServer("server", "TestServer", 4567) {
+		TcpServer server = new TcpServer("server", "TestServer", 4567) {
 			public void receive (Connection connection, String event, String payload) {
 				System.out.println("Server received: " + event + ", " + payload);
 				send("ok good");
 			}
 		};
+		server.start();
 
 		TcpClient client = new TcpClient("client", "TestClient", "localhost", 4567) {
 			public void receive (String event, String payload) {
 				System.out.println("Client received: " + event + ", " + payload);
+				getConnection().close();
 			}
 		};
+		client.start();
 		client.waitForConnection(0);
 		client.send("yay moo");
 	}

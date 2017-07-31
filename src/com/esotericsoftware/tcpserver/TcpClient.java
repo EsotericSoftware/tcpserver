@@ -25,75 +25,89 @@ import static com.esotericsoftware.minlog.Log.*;
 import java.io.IOException;
 import java.net.Socket;
 
-public abstract class TcpClient {
-	volatile ClientConnection connection;
-	int reconnectDelay = 10 * 1000;
-	final Object waitForConnection = new Object();
+public abstract class TcpClient extends Retry {
+	private final String host;
+	private final int port;
+
+	private volatile ClientConnection connection;
+	private int reconnectDelay = 10 * 1000;
+	private final Object waitForConnection = new Object();
 	final Object waitForClose = new Object();
 
 	public TcpClient (String category, String name, String host, int port) {
-		new Thread(name) {
-			public void run () {
-				while (true) {
-					Socket socket = null;
-					try {
-						socket = new Socket(host, port);
-					} catch (IOException ex) {
-						if (ERROR) error(category, "Unable to connect: " + host + ":" + port);
-						sleep();
-						continue;
-					}
-					if (INFO) info(category, "Connected: " + socket.getInetAddress() + ":" + socket.getPort());
+		super(category, name);
+		this.host = host;
+		this.port = port;
+	}
 
-					try {
-						connection = new ClientConnection(category, name, socket);
-						connection.start();
-					} catch (IOException ex) {
-						if (ERROR) error("server", "Error configuring client connection.", ex);
-						sleep();
-						continue;
-					}
+	protected void retry () {
+		Socket socket = null;
+		try {
+			socket = new Socket(host, port);
+		} catch (IOException ex) {
+			if (ERROR) error(category, "Unable to connect: " + host + ":" + port);
+			failed();
+			return;
+		}
+		success();
+		if (INFO) info(category, "Connected: " + socket.getInetAddress() + ":" + socket.getPort());
 
-					synchronized (waitForConnection) {
-						waitForConnection.notifyAll();
-					}
+		try {
+			connection = new ClientConnection(category, name, socket);
+			connection.start();
+		} catch (IOException ex) {
+			if (ERROR) error(category, "Error configuring client connection.", ex);
+			failed();
+			return;
+		}
 
-					waitForClose(0);
-				}
-			}
+		connected(connection);
+		synchronized (waitForConnection) {
+			waitForConnection.notifyAll();
+		}
+		waitForClose(0);
+		disconnected(connection);
+	}
 
-			private void sleep () {
-				try {
-					sleep(reconnectDelay);
-				} catch (InterruptedException ignored) {
-				}
-			}
-		}.start();
+	protected void stopping () {
+		ClientConnection connection = this.connection;
+		if (connection != null) connection.close();
 	}
 
 	public boolean send (String message) {
 		ClientConnection connection = this.connection;
 		if (connection == null) {
-			if (DEBUG) debug("Unable to send, connection is closed: " + message);
+			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
 		}
 		connection.sends.add(message);
 		return true;
 	}
 
+	public void connected (Connection connection) {
+	}
+
+	public void disconnected (Connection connection) {
+	}
+
 	abstract public void receive (String event, String payload);
 
+	public ClientConnection getConnection () {
+		return connection;
+	}
+
 	/** @param millis 0 to wait forever. */
-	public void waitForConnection (long millis) {
+	public boolean waitForConnection (long millis) {
+		if (TRACE) trace(category, "Waiting for connection.");
 		long until = System.currentTimeMillis() + millis;
 		while (true) {
 			synchronized (waitForConnection) {
 				ClientConnection connection = TcpClient.this.connection;
-				if (connection != null && !connection.closed) return;
+				if (connection != null && !connection.closed) return true;
 				long wait = 0;
 				if (millis > 0) {
 					wait = until - System.currentTimeMillis();
-					if (wait < 0) return;
+					if (wait < 0) return false;
 				}
 				try {
 					waitForConnection.wait(wait);
@@ -105,6 +119,7 @@ public abstract class TcpClient {
 
 	/** @param millis 0 to wait forever. */
 	public void waitForClose (long millis) {
+		if (TRACE) trace(category, "Waiting for close.");
 		long until = System.currentTimeMillis() + millis;
 		while (true) {
 			synchronized (waitForClose) {
@@ -121,10 +136,6 @@ public abstract class TcpClient {
 				}
 			}
 		}
-	}
-
-	public void setReconnectDelay (int reconnectDelay) {
-		this.reconnectDelay = reconnectDelay;
 	}
 
 	class ClientConnection extends Connection {
