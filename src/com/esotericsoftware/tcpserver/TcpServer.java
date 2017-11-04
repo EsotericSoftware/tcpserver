@@ -21,7 +21,7 @@
 package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
-import static com.esotericsoftware.tcpserver.Connection.*;
+import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -77,7 +77,7 @@ abstract public class TcpServer extends Retry {
 			connection.send(message);
 	}
 
-	abstract public void receive (Connection connection, String event, String payload);
+	abstract public void receive (Connection connection, String event, String payload, byte[] bytes, int length);
 
 	public void close () {
 		for (Connection connection : connections) {
@@ -97,8 +97,8 @@ abstract public class TcpServer extends Retry {
 			return false;
 		}
 
-		public void receive (String event, String payload) {
-			TcpServer.this.receive(this, event, payload);
+		public void receive (String event, String payload, byte[] bytes, int length) {
+			TcpServer.this.receive(this, event, payload, bytes, length);
 		}
 
 		public void close () {
@@ -111,16 +111,16 @@ abstract public class TcpServer extends Retry {
 		TRACE();
 
 		TcpServer server = new TcpServer("server", "TestServer", 4567) {
-			public void receive (Connection connection, String event, String payload) {
-				System.out.println("Server received: " + event + ", " + payload);
+			public void receive (Connection connection, String event, String payload, byte[] bytes, int length) {
+				System.out.println("Server received: " + event + ", " + payload + ", " + bytes.length);
 				send("ok good");
 			}
 		};
 		server.start();
 
 		TcpClient client = new TcpClient("client", "TestClient", "localhost", 4567) {
-			public void receive (String event, String payload) {
-				System.out.println("Client received: " + event + ", " + payload);
+			public void receive (String event, String payload, byte[] bytes, int length) {
+				System.out.println("Client received: " + event + ", " + payload + ", " + bytes.length);
 				getConnection().close();
 			}
 		};
