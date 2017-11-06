@@ -90,7 +90,7 @@ public abstract class TcpClient extends Retry {
 	public void disconnected (Connection connection) {
 	}
 
-	abstract public void receive (String event, String payload, byte[] bytes, int length);
+	abstract public void receive (String event, String payload, byte[] bytes, int count);
 
 	public ClientConnection getConnection () {
 		return connection;
@@ -143,8 +143,8 @@ public abstract class TcpClient extends Retry {
 			super(category, name, socket);
 		}
 
-		public void receive (String event, String payload, byte[] bytes, int length) {
-			TcpClient.this.receive(event, payload, bytes, length);
+		public void receive (String event, String payload, byte[] bytes, int count) {
+			TcpClient.this.receive(event, payload, bytes, count);
 		}
 
 		public void close () {

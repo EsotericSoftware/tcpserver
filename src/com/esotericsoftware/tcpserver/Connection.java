@@ -122,8 +122,6 @@ abstract public class Connection {
 						} catch (InterruptedException ignored) {
 						}
 					}
-				} catch (IOException ex) {
-					if (ERROR && !closed) error(category, "Error writing to client.", ex);
 				} finally {
 					close();
 					if (TRACE) trace(category, "Write thread stopped.");
@@ -141,7 +139,7 @@ abstract public class Connection {
 
 	/** Sends the string, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
-	public boolean sendBlocking (String message) throws IOException {
+	public boolean sendBlocking (String message) {
 		if (closed) return false;
 		try {
 			synchronized (outputLock) {
@@ -160,13 +158,13 @@ abstract public class Connection {
 	}
 
 	/** @see #sendBlocking(String, byte[], int, int) */
-	public boolean sendBlocking (String string, byte[] bytes) throws IOException {
+	public boolean sendBlocking (String string, byte[] bytes) {
 		return sendBlocking(string, bytes, 0, bytes.length);
 	}
 
 	/** Sends the string, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
-	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) throws IOException {
+	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
 		if (closed) return false;
 		try {
 			synchronized (outputLock) {
@@ -185,7 +183,7 @@ abstract public class Connection {
 		}
 	}
 
-	abstract public void receive (String event, String payload, byte[] bytes, int length);
+	abstract public void receive (String event, String payload, byte[] bytes, int count);
 
 	public void close () {
 		if (INFO && !closed) info(category, "Client disconnected.");

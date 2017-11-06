@@ -77,6 +77,27 @@ abstract public class TcpServer extends Retry {
 			connection.send(message);
 	}
 
+	public boolean sendBlocking (String message) {
+		boolean success = true;
+		for (Connection connection : connections)
+			if (!connection.sendBlocking(message)) success = false;
+		return success;
+	}
+
+	public boolean sendBlocking (String message, byte[] bytes) {
+		boolean success = true;
+		for (Connection connection : connections)
+			if (!connection.sendBlocking(message, bytes)) success = false;
+		return success;
+	}
+
+	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
+		boolean success = true;
+		for (Connection connection : connections)
+			if (!connection.sendBlocking(message, bytes, offset, count)) success = false;
+		return success;
+	}
+
 	abstract public void receive (Connection connection, String event, String payload, byte[] bytes, int length);
 
 	public void close () {
@@ -97,8 +118,8 @@ abstract public class TcpServer extends Retry {
 			return false;
 		}
 
-		public void receive (String event, String payload, byte[] bytes, int length) {
-			TcpServer.this.receive(this, event, payload, bytes, length);
+		public void receive (String event, String payload, byte[] bytes, int count) {
+			TcpServer.this.receive(this, event, payload, bytes, count);
 		}
 
 		public void close () {
@@ -119,8 +140,8 @@ abstract public class TcpServer extends Retry {
 		server.start();
 
 		TcpClient client = new TcpClient("client", "TestClient", "localhost", 4567) {
-			public void receive (String event, String payload, byte[] bytes, int length) {
-				System.out.println("Client received: " + event + ", " + payload + ", " + bytes.length);
+			public void receive (String event, String payload, byte[] bytes, int count) {
+				System.out.println("Client received: " + event + ", " + payload + ", " + count);
 				getConnection().close();
 			}
 		};
