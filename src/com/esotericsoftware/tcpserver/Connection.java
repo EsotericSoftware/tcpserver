@@ -61,8 +61,6 @@ abstract public class Connection {
 
 	void start () {
 		new Thread(name + "Read") {
-			char[] chars = new char[0];
-
 			public void run () {
 				try {
 					while (!closed) {
