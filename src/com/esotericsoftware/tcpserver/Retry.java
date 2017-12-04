@@ -22,7 +22,7 @@ package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
 
-/** A thread which can be started and stopped which calls {@link #retry()} repeatedly, sleeping when a try has failed. */
+/** Manages a thrad which calls {@link #retry()} repeatedly, sleeping when a try has failed. */
 public abstract class Retry {
 	protected final String category, name;
 	protected volatile boolean running;
@@ -36,12 +36,11 @@ public abstract class Retry {
 		this.name = name;
 	}
 
-	/** Starts a "retry" thread which calls {@link #initialize()} and then repeatedly calls {@link #retry()}. Calls {@link #stop()}
-	 * first if there is an existing retry thread. */
+	/** Starts a thread which calls {@link #initialize()} and then repeatedly calls {@link #retry()}. */
 	public void start () {
 		synchronized (runLock) {
 			stop();
-			if (TRACE) trace(category, "Started " + name + " thread.");
+			if (TRACE) trace(category, "Started retry thread: " + name);
 			delayIndex = 0;
 			running = true;
 			retryThread = new Thread(name) {
@@ -50,11 +49,13 @@ public abstract class Retry {
 						initialize();
 						while (running)
 							retry();
-						Retry.this.stop();
+					} catch (Throwable ex) {
+						throw new RuntimeException("Retry error: " + name, ex);
 					} finally {
-						if (TRACE) trace(category, "Stopped " + name + " thread.");
 						synchronized (runLock) {
-							stopping();
+							Retry.this.stop();
+							if (TRACE) trace(category, "Stopped retry thread: " + name);
+							stopped();
 							retryThread = null;
 							runLock.notifyAll();
 						}
@@ -72,9 +73,9 @@ public abstract class Retry {
 			running = false;
 			Thread retryThread = this.retryThread;
 			if (retryThread == Thread.currentThread()) return;
-			if (TRACE) trace(category, "Waiting for " + name + " thread to stop...");
+			if (TRACE) trace(category, "Waiting for retry thread to stop: " + name);
 			retryThread.interrupt();
-			stopping();
+			stopped();
 			while (this.retryThread == retryThread) {
 				try {
 					runLock.wait();
@@ -84,17 +85,17 @@ public abstract class Retry {
 		}
 	}
 
-	/** Called once after {@link #start()}, on retry thread. */
+	/** Called once after {@link #start()}, on the retry thread. */
 	protected void initialize () {
 	}
 
-	/** Called repeatedly on retry thread between {@link #start()} and {@link #stop()}. If a runtime exception is thrown, the retry
-	 * thread is stopped. {@link #success()} or {@link #failed()} should be called. */
+	/** Called repeatedly on the retry thread between {@link #start()} and {@link #stop()}. If a runtime exception is thrown, the
+	 * retry thread is stopped. {@link #success()} or {@link #failed()} should be called. */
 	abstract protected void retry ();
 
 	/** Called when the retry thread has been stopped. Called on the thread calling {@link #stop()} or on the retry thread if an
 	 * exception occurred. */
-	protected void stopping () {
+	protected void stopped () {
 	}
 
 	/** Subclasses should call this from {@link #retry()} to indicate success, resets the next failure sleep time. */
@@ -104,6 +105,7 @@ public abstract class Retry {
 
 	/** Subclasses should call this from {@link #retry()} to indicate failure, sleeps for some time. */
 	protected void failed () {
+		if (retryDelays[delayIndex] == 0) throw new RuntimeException("Retry thread failed: " + name);
 		try {
 			Thread.sleep(retryDelays[delayIndex]);
 		} catch (InterruptedException ignored) {
@@ -112,7 +114,8 @@ public abstract class Retry {
 		if (delayIndex == retryDelays.length) delayIndex = 0;
 	}
 
-	/** The delays to use for repeated failures. If more failures occur than entries, the last entry is used. */
+	/** The delays to use for repeated failures. If more failures occur than entries, the last entry is used. If a delay is zero,
+	 * the retry thread is stopped by throwing an exception. */
 	public void setRetryDelays (int... retryDelays) {
 		this.retryDelays = retryDelays;
 	}

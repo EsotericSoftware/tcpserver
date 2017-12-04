@@ -26,6 +26,7 @@ import static com.esotericsoftware.tcpserver.Util.*;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 abstract public class TcpServer extends Retry {
@@ -41,6 +42,12 @@ abstract public class TcpServer extends Retry {
 	protected void retry () {
 		try {
 			server = new ServerSocket(port);
+		} catch (Exception ex) {
+			if (ERROR) error(category, "Unable to start TCP server.", ex);
+			failed();
+			return;
+		}
+		try {
 			if (INFO) info(category, "Listening on port: " + port);
 			while (running) {
 				Socket socket = server.accept();
@@ -62,7 +69,7 @@ abstract public class TcpServer extends Retry {
 		}
 	}
 
-	protected void stopping () {
+	protected void stopped () {
 		closeQuietly(server);
 	}
 
@@ -70,6 +77,10 @@ abstract public class TcpServer extends Retry {
 	}
 
 	public void disconnected (Connection connection) {
+	}
+
+	public List<Connection> getConnections () {
+		return connections;
 	}
 
 	public void send (String message) {
@@ -85,10 +96,7 @@ abstract public class TcpServer extends Retry {
 	}
 
 	public boolean sendBlocking (String message, byte[] bytes) {
-		boolean success = true;
-		for (Connection connection : connections)
-			if (!connection.sendBlocking(message, bytes)) success = false;
-		return success;
+		return sendBlocking(message, bytes, 0, bytes.length);
 	}
 
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
@@ -147,6 +155,6 @@ abstract public class TcpServer extends Retry {
 		};
 		client.start();
 		client.waitForConnection(0);
-		client.send("yay moo");
+		client.sendBlocking("yay moo");
 	}
 }

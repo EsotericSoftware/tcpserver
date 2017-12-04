@@ -25,7 +25,7 @@ import static com.esotericsoftware.minlog.Log.*;
 import java.io.IOException;
 import java.net.Socket;
 
-public abstract class TcpClient extends Retry {
+public class TcpClient extends Retry {
 	private final String host;
 	private final int port;
 
@@ -69,7 +69,7 @@ public abstract class TcpClient extends Retry {
 		disconnected(connection);
 	}
 
-	protected void stopping () {
+	protected void stopped () {
 		ClientConnection connection = this.connection;
 		if (connection != null) connection.close();
 	}
@@ -80,8 +80,30 @@ public abstract class TcpClient extends Retry {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
 		}
-		connection.sends.add(message);
+		connection.send(message);
 		return true;
+	}
+
+	public boolean sendBlocking (String message) {
+		ClientConnection connection = this.connection;
+		if (connection == null) {
+			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			return false;
+		}
+		return connection.sendBlocking(message);
+	}
+
+	public boolean sendBlocking (String message, byte[] bytes) {
+		return sendBlocking(message, bytes);
+	}
+
+	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
+		ClientConnection connection = this.connection;
+		if (connection == null) {
+			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			return false;
+		}
+		return connection.sendBlocking(message);
 	}
 
 	public void connected (Connection connection) {
@@ -90,7 +112,8 @@ public abstract class TcpClient extends Retry {
 	public void disconnected (Connection connection) {
 	}
 
-	abstract public void receive (String event, String payload, byte[] bytes, int count);
+	public void receive (String event, String payload, byte[] bytes, int count) {
+	}
 
 	public ClientConnection getConnection () {
 		return connection;
@@ -117,18 +140,19 @@ public abstract class TcpClient extends Retry {
 		}
 	}
 
-	/** @param millis 0 to wait forever. */
-	public void waitForClose (long millis) {
+	/** @param millis 0 to wait forever.
+	 * @return true if the close happened. */
+	public boolean waitForClose (long millis) {
 		if (TRACE) trace(category, "Waiting for close.");
 		long until = System.currentTimeMillis() + millis;
 		while (true) {
 			synchronized (waitForClose) {
 				ClientConnection connection = TcpClient.this.connection;
-				if (connection == null || connection.closed) return;
+				if (connection == null || connection.closed) return true;
 				long wait = 0;
 				if (millis > 0) {
 					wait = until - System.currentTimeMillis();
-					if (wait < 0) return;
+					if (wait < 0) return false;
 				}
 				try {
 					waitForClose.wait(wait);
