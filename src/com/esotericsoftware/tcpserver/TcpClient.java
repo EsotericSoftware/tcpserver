@@ -21,18 +21,23 @@
 package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
+import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
 import java.net.Socket;
 
 public class TcpClient extends Retry {
-	private final String host;
-	private final int port;
+	private String host;
+	private int port;
 
 	private volatile ClientConnection connection;
 	private int reconnectDelay = 10 * 1000;
 	private final Object waitForConnection = new Object();
 	final Object waitForClose = new Object();
+
+	public TcpClient (String category, String name) {
+		this(category, name, "", 0);
+	}
 
 	public TcpClient (String category, String name, String host, int port) {
 		super(category, name);
@@ -49,22 +54,31 @@ public class TcpClient extends Retry {
 			failed();
 			return;
 		}
-		success();
-		if (INFO) info(category, "Connected: " + socket.getInetAddress() + ":" + socket.getPort());
 
-		try {
-			connection = new ClientConnection(category, name, socket);
-			connection.start();
-		} catch (IOException ex) {
-			if (ERROR) error(category, "Error configuring client connection.", ex);
-			failed();
-			return;
+		synchronized (runLock) {
+			if (!running) {
+				closeQuietly(socket);
+				return;
+			}
+
+			success();
+			if (INFO) info(category, "Connected: " + socket.getInetAddress() + ":" + socket.getPort());
+
+			try {
+				connection = new ClientConnection(category, name, socket);
+				connection.start();
+			} catch (IOException ex) {
+				if (ERROR) error(category, "Error configuring client connection.", ex);
+				failed();
+				return;
+			}
+
+			connected(connection);
+			synchronized (waitForConnection) {
+				waitForConnection.notifyAll();
+			}
 		}
 
-		connected(connection);
-		synchronized (waitForConnection) {
-			waitForConnection.notifyAll();
-		}
 		waitForClose(0);
 		disconnected(connection);
 	}
@@ -81,6 +95,20 @@ public class TcpClient extends Retry {
 			return false;
 		}
 		connection.send(message);
+		return true;
+	}
+
+	public boolean send (String message, byte[] bytes) {
+		return send(message, bytes, 0, bytes.length);
+	}
+
+	public boolean send (String message, byte[] bytes, int offset, int count) {
+		ClientConnection connection = this.connection;
+		if (connection == null) {
+			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			return false;
+		}
+		connection.send(message, bytes, offset, count);
 		return true;
 	}
 
@@ -103,7 +131,7 @@ public class TcpClient extends Retry {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
 		}
-		return connection.sendBlocking(message);
+		return connection.sendBlocking(message, bytes, offset, count);
 	}
 
 	public void connected (Connection connection) {
@@ -115,8 +143,13 @@ public class TcpClient extends Retry {
 	public void receive (String event, String payload, byte[] bytes, int count) {
 	}
 
-	public ClientConnection getConnection () {
+	/** Returns the connection to the server, or null if not connected. */
+	public Connection getConnection () {
 		return connection;
+	}
+
+	public boolean isConnected () {
+		return connection != null;
 	}
 
 	/** @param millis 0 to wait forever. */
@@ -160,6 +193,22 @@ public class TcpClient extends Retry {
 				}
 			}
 		}
+	}
+
+	public String getHost () {
+		return host;
+	}
+
+	public void setHost (String host) {
+		this.host = host;
+	}
+
+	public int getPort () {
+		return port;
+	}
+
+	public void setPort (int port) {
+		this.port = port;
 	}
 
 	class ClientConnection extends Connection {

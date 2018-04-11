@@ -41,7 +41,7 @@ abstract public class Connection {
 	final DataOutputStream output;
 	final Object outputLock = new Object();
 
-	final ArrayBlockingQueue<String> sends = new ArrayBlockingQueue(1024, true);
+	final ArrayBlockingQueue sends = new ArrayBlockingQueue(1024, true);
 	Thread writeThread;
 	volatile boolean closed;
 	byte[] data = empty;
@@ -120,7 +120,13 @@ abstract public class Connection {
 				try {
 					while (!closed) {
 						try {
-							sendBlocking(sends.take(), null, 0, 0);
+							Object object = sends.take();
+							if (object instanceof String)
+								sendBlocking((String)object, null, 0, 0);
+							else {
+								Send send = (Send)object;
+								sendBlocking(send.message, send.bytes, send.offset, send.count);
+							}
 						} catch (InterruptedException ignored) {
 						}
 					}
@@ -139,6 +145,23 @@ abstract public class Connection {
 		sends.add(message);
 	}
 
+	/** @see #send(String, byte[], int, int) */
+	public void send (String message, byte[] bytes) {
+		send(message, bytes, 0, bytes.length);
+	}
+
+	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
+	 * during the wait. */
+	public void send (String message, byte[] bytes, int offset, int count) {
+		if (TRACE) trace(category, "Queued: " + message + ", " + count);
+		Send send = new Send();
+		send.message = message;
+		send.bytes = bytes;
+		send.offset = offset;
+		send.count = count;
+		sends.add(send);
+	}
+
 	/** Sends the string, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message) {
@@ -150,7 +173,7 @@ abstract public class Connection {
 		return sendBlocking(message, bytes, 0, bytes.length);
 	}
 
-	/** Sends the string, blocking until sending is complete.
+	/** Sends the string and bytes, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
 		if (closed) return false;
@@ -179,5 +202,16 @@ abstract public class Connection {
 		closeQuietly(output);
 		closeQuietly(input);
 		closeQuietly(socket);
+	}
+
+	public boolean isClosed () {
+		return closed;
+	}
+
+	static class Send {
+		String message;
+		byte[] bytes;
+		int offset;
+		int count;
 	}
 }

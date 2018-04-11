@@ -26,6 +26,7 @@ import static com.esotericsoftware.minlog.Log.*;
 public abstract class Retry {
 	protected final String category, name;
 	protected volatile boolean running;
+	boolean daemon;
 	final Object runLock = new Object();
 	volatile Thread retryThread;
 	int delayIndex;
@@ -62,6 +63,7 @@ public abstract class Retry {
 					}
 				}
 			};
+			retryThread.setDaemon(daemon);
 			retryThread.start();
 		}
 	}
@@ -93,7 +95,7 @@ public abstract class Retry {
 	 * retry thread is stopped. {@link #success()} or {@link #failed()} should be called. */
 	abstract protected void retry ();
 
-	/** Called when the retry thread has been stopped. Called on the thread calling {@link #stop()} or on the retry thread if an
+	/** Called when the retry thread should be stopped. Called on the thread calling {@link #stop()} or on the retry thread if an
 	 * exception occurred. */
 	protected void stopped () {
 	}
@@ -118,5 +120,13 @@ public abstract class Retry {
 	 * the retry thread is stopped by throwing an exception. */
 	public void setRetryDelays (int... retryDelays) {
 		this.retryDelays = retryDelays;
+	}
+
+	public boolean isRunning () {
+		return running;
+	}
+
+	public void setDaemon (boolean daemon) {
+		this.daemon = daemon;
 	}
 }

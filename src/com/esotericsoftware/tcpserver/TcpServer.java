@@ -26,13 +26,18 @@ import static com.esotericsoftware.tcpserver.Util.*;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 abstract public class TcpServer extends Retry {
 	final CopyOnWriteArrayList<Connection> connections = new CopyOnWriteArrayList();
-	private final int port;
+	private int port;
 	private ServerSocket server;
+
+	public TcpServer (String category, String name) {
+		this(category, name, 0);
+	}
 
 	public TcpServer (String category, String name, int port) {
 		super(category, name);
@@ -48,9 +53,15 @@ abstract public class TcpServer extends Retry {
 			return;
 		}
 		try {
-			if (INFO) info(category, "Listening on port: " + port);
+			if (INFO) info(category, "Listening on port: TCP " + port);
 			while (running) {
-				Socket socket = server.accept();
+				Socket socket;
+				try {
+					socket = server.accept();
+				} catch (SocketException ex) {
+					if (!running) return; // Assume server socket was closed normally.
+					throw ex;
+				}
 				success();
 				try {
 					ServerConnection connection = new ServerConnection(category, name, socket);
@@ -70,6 +81,9 @@ abstract public class TcpServer extends Retry {
 	}
 
 	protected void stopped () {
+		for (int i = connections.size() - 1; i >= 0; i--)
+			connections.get(i).close();
+		connections.clear();
 		closeQuietly(server);
 	}
 
@@ -86,6 +100,15 @@ abstract public class TcpServer extends Retry {
 	public void send (String message) {
 		for (Connection connection : connections)
 			connection.send(message);
+	}
+
+	public void send (String message, byte[] bytes) {
+		send(message, bytes, 0, bytes.length);
+	}
+
+	public void send (String message, byte[] bytes, int offset, int count) {
+		for (Connection connection : connections)
+			connection.send(message, bytes, offset, count);
 	}
 
 	public boolean sendBlocking (String message) {
@@ -106,14 +129,14 @@ abstract public class TcpServer extends Retry {
 		return success;
 	}
 
-	abstract public void receive (Connection connection, String event, String payload, byte[] bytes, int length);
+	abstract public void receive (Connection connection, String event, String payload, byte[] bytes, int count);
 
-	public void close () {
-		for (Connection connection : connections) {
-			connection.close();
-			disconnected(connection);
-		}
-		connections.clear();
+	public int getPort () {
+		return port;
+	}
+
+	public void setPort (int port) {
+		this.port = port;
 	}
 
 	private class ServerConnection extends Connection {
@@ -131,8 +154,12 @@ abstract public class TcpServer extends Retry {
 		}
 
 		public void close () {
+			boolean wasClosed = this.closed;
 			super.close();
-			connections.remove(this);
+			if (!wasClosed) {
+				disconnected(this);
+				connections.remove(this);
+			}
 		}
 	}
 
@@ -140,8 +167,8 @@ abstract public class TcpServer extends Retry {
 		TRACE();
 
 		TcpServer server = new TcpServer("server", "TestServer", 4567) {
-			public void receive (Connection connection, String event, String payload, byte[] bytes, int length) {
-				System.out.println("Server received: " + event + ", " + payload + ", " + bytes.length);
+			public void receive (Connection connection, String event, String payload, byte[] bytes, int count) {
+				System.out.println("Server received: " + event + ", " + payload + ", " + count);
 				send("ok good");
 			}
 		};
