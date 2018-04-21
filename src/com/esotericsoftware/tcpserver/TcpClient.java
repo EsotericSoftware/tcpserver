@@ -24,12 +24,14 @@ import static com.esotericsoftware.minlog.Log.*;
 import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 
 public class TcpClient extends Retry {
 	private String host;
 	private int port;
 
+	private int connectTimeout = 10000, readTimeout;
 	private volatile ClientConnection connection;
 	private int reconnectDelay = 10 * 1000;
 	private final Object waitForConnection = new Object();
@@ -48,7 +50,10 @@ public class TcpClient extends Retry {
 	protected void retry () {
 		Socket socket = null;
 		try {
-			socket = new Socket(host, port);
+			socket = new Socket();
+			socket.connect(new InetSocketAddress(host, port), connectTimeout);
+			socket.setSoTimeout(readTimeout);
+			socket.setTcpNoDelay(false);
 		} catch (IOException ex) {
 			if (ERROR) error(category, "Unable to connect: " + host + ":" + port);
 			failed();
@@ -209,6 +214,22 @@ public class TcpClient extends Retry {
 
 	public void setPort (int port) {
 		this.port = port;
+	}
+
+	public int getConnectTimeout () {
+		return connectTimeout;
+	}
+
+	public void setConnectTimeout (int millis) {
+		connectTimeout = millis;
+	}
+
+	public int getReadTimeout () {
+		return readTimeout;
+	}
+
+	public void setReadTimeout (int millis) {
+		readTimeout = millis;
 	}
 
 	class ClientConnection extends Connection {
