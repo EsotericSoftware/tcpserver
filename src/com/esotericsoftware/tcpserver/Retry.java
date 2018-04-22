@@ -69,12 +69,12 @@ public abstract class Retry {
 	}
 
 	/** Interrupts the retry thread and waits for it to terminate. */
-	public void stop () {
+	public boolean stop () {
 		synchronized (runLock) {
-			if (!running) return;
+			if (!running) return false;
 			running = false;
 			Thread retryThread = this.retryThread;
-			if (retryThread == Thread.currentThread()) return;
+			if (retryThread == Thread.currentThread()) return true;
 			if (TRACE) trace(category, "Waiting for retry thread to stop: " + name);
 			retryThread.interrupt();
 			stopped();
@@ -84,6 +84,7 @@ public abstract class Retry {
 				} catch (InterruptedException ex) {
 				}
 			}
+			return true;
 		}
 	}
 
@@ -113,7 +114,7 @@ public abstract class Retry {
 		} catch (InterruptedException ignored) {
 		}
 		delayIndex++;
-		if (delayIndex == retryDelays.length) delayIndex = 0;
+		if (delayIndex >= retryDelays.length) delayIndex = 0;
 	}
 
 	/** The delays to use for repeated failures. If more failures occur than entries, the last entry is used. If a delay is zero,

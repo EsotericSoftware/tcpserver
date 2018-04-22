@@ -16,7 +16,7 @@ public class Util {
 	}
 
 	/** Write an int using variable length encoding (1-5 bytes). */
-	static public void writeInt (int value, OutputStream output) throws IOException {
+	static public void writeVarint (int value, OutputStream output) throws IOException {
 		if (value >>> 7 == 0) {
 			output.write(value);
 			return;
@@ -47,7 +47,7 @@ public class Util {
 	}
 
 	/** Read an int using variable length encoding (1-5 bytes). */
-	static public int readInt (InputStream input) throws IOException {
+	static public int readVarint (InputStream input) throws IOException {
 		int b = input.read();
 		int result = b & 0x7F;
 		if ((b & 0x80) == 0) return result;

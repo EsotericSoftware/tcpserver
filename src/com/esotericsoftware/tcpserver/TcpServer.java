@@ -77,6 +77,8 @@ abstract public class TcpServer extends Retry {
 			if (ERROR) error(category, "Unexpected server error.", ex);
 			closeQuietly(server);
 			failed();
+		} finally {
+			if (INFO) info(category, "Server stopped: TCP " + port);
 		}
 	}
 

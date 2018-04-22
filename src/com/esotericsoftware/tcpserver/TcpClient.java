@@ -32,7 +32,7 @@ public class TcpClient extends Retry {
 	private int port;
 
 	private int connectTimeout = 10000, readTimeout;
-	private volatile ClientConnection connection;
+	volatile ClientConnection connection;
 	private int reconnectDelay = 10 * 1000;
 	private final Object waitForConnection = new Object();
 	final Object waitForClose = new Object();
@@ -73,6 +73,7 @@ public class TcpClient extends Retry {
 				connection = new ClientConnection(category, name, socket);
 				connection.start();
 			} catch (IOException ex) {
+				connection = null;
 				if (ERROR) error(category, "Error configuring client connection.", ex);
 				failed();
 				return;
@@ -90,11 +91,14 @@ public class TcpClient extends Retry {
 
 	protected void stopped () {
 		ClientConnection connection = this.connection;
-		if (connection != null) connection.close();
+		if (connection != null) {
+			connection.close();
+			this.connection = null;
+		}
 	}
 
 	public boolean send (String message) {
-		ClientConnection connection = this.connection;
+		Connection connection = getConnection();
 		if (connection == null) {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
@@ -108,7 +112,7 @@ public class TcpClient extends Retry {
 	}
 
 	public boolean send (String message, byte[] bytes, int offset, int count) {
-		ClientConnection connection = this.connection;
+		Connection connection = getConnection();
 		if (connection == null) {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
@@ -118,7 +122,7 @@ public class TcpClient extends Retry {
 	}
 
 	public boolean sendBlocking (String message) {
-		ClientConnection connection = this.connection;
+		Connection connection = getConnection();
 		if (connection == null) {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
@@ -131,7 +135,7 @@ public class TcpClient extends Retry {
 	}
 
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
-		ClientConnection connection = this.connection;
+		Connection connection = getConnection();
 		if (connection == null) {
 			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
 			return false;
@@ -150,11 +154,13 @@ public class TcpClient extends Retry {
 
 	/** Returns the connection to the server, or null if not connected. */
 	public Connection getConnection () {
-		return connection;
+		ClientConnection connection = this.connection;
+		return connection != null && !connection.closed ? connection : null;
 	}
 
 	public boolean isConnected () {
-		return connection != null;
+		ClientConnection connection = this.connection;
+		return connection != null && !connection.closed;
 	}
 
 	/** @param millis 0 to wait forever. */
@@ -163,8 +169,8 @@ public class TcpClient extends Retry {
 		long until = System.currentTimeMillis() + millis;
 		while (true) {
 			synchronized (waitForConnection) {
-				ClientConnection connection = TcpClient.this.connection;
-				if (connection != null && !connection.closed) return true;
+				Connection connection = getConnection();
+				if (connection != null) return true;
 				long wait = 0;
 				if (millis > 0) {
 					wait = until - System.currentTimeMillis();
@@ -185,8 +191,8 @@ public class TcpClient extends Retry {
 		long until = System.currentTimeMillis() + millis;
 		while (true) {
 			synchronized (waitForClose) {
-				ClientConnection connection = TcpClient.this.connection;
-				if (connection == null || connection.closed) return true;
+				Connection connection = getConnection();
+				if (connection == null) return true;
 				long wait = 0;
 				if (millis > 0) {
 					wait = until - System.currentTimeMillis();
@@ -243,6 +249,7 @@ public class TcpClient extends Retry {
 
 		public void close () {
 			super.close();
+			connection = null;
 			synchronized (waitForClose) {
 				waitForClose.notifyAll();
 			}

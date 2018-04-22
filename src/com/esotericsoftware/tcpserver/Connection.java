@@ -46,7 +46,7 @@ abstract public class Connection {
 	volatile boolean closed;
 	byte[] data = empty;
 
-	public Connection (String category, String name, final Socket socket) throws IOException {
+	public Connection (String category, String name, Socket socket) throws IOException {
 		this.category = category;
 		this.name = name;
 		this.socket = socket;
@@ -76,7 +76,7 @@ abstract public class Connection {
 							payload = "";
 						}
 
-						int dataLength = readInt(input);
+						int dataLength = readVarint(input);
 						if (dataLength > 0) {
 							if (closed) break;
 							if (data.length < dataLength) data = new byte[dataLength];
@@ -151,8 +151,10 @@ abstract public class Connection {
 	}
 
 	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
-	 * during the wait. */
+	 * during the wait.
+	 * @param bytes May be null if count is 0. */
 	public void send (String message, byte[] bytes, int offset, int count) {
+		if (count != 0 && bytes == null) throw new IllegalArgumentException("bytes cannot be null when count != 0: " + count);
 		if (TRACE) trace(category, "Queued: " + message + ", " + count);
 		Send send = new Send();
 		send.message = message;
@@ -174,25 +176,28 @@ abstract public class Connection {
 	}
 
 	/** Sends the string and bytes, blocking until sending is complete.
+	 * @param bytes May be null if count is 0.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
+		if (count != 0 && bytes == null) throw new IllegalArgumentException("bytes cannot be null when count != 0: " + count);
 		if (closed) return false;
 		try {
 			synchronized (outputLock) {
 				if (TRACE) trace(category, "Sent: " + message + (count > 0 ? ", " + count : ""));
 				output.writeUTF(message);
-				writeInt(count, output);
-				output.write(bytes, offset, count);
+				writeVarint(count, output);
+				if (count != 0) output.write(bytes, offset, count);
 				output.flush();
 			}
 			return true;
 		} catch (IOException ex) {
-			if (ERROR && !closed) error(category, "Error writing to connection.", ex);
+			if (ERROR && !closed) error(category, "Error writing to connection: " + message, ex);
 			close();
 			return false;
 		}
 	}
 
+	/** @param bytes May be null if count is 0. */
 	abstract public void receive (String event, String payload, byte[] bytes, int count);
 
 	public void close () {
