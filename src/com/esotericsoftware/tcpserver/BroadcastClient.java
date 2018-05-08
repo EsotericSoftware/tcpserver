@@ -33,14 +33,19 @@ public class BroadcastClient extends Retry {
 		failed(); // Always sleep.
 	}
 
+	/** Returns the buffer which is sent as a request. It must be at least large enough for {@link BroadcastServer#prefix}, which
+	 * is written at the start. */
 	protected byte[] requestBuffer () {
 		return request;
 	}
 
+	/** Returns the buffer into which the received packet will be written. It must be at least large enough for
+	 * {@link BroadcastServer#prefix}. */
 	protected byte[] receiveBuffer () {
 		return receive;
 	}
 
+	/** Called with the packet received from the server. The data will start with {@link BroadcastServer#prefix}. */
 	protected void received (DatagramPacket packet) {
 	}
 
@@ -96,7 +101,7 @@ public class BroadcastClient extends Retry {
 			try {
 				socket.receive(packet);
 			} catch (SocketTimeoutException ex) {
-				if (INFO) info("broadcast", "Host discovery timed out.");
+				if (DEBUG) debug("broadcast", "Host discovery timed out.");
 				return null;
 			}
 			int i = 0;

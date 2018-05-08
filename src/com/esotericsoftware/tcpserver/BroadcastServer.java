@@ -78,10 +78,13 @@ public class BroadcastServer extends Retry {
 		}
 	}
 
+	/** Returns the buffer into which the received packet will be written. It must be at least large enough for {@link #prefix}. */
 	protected byte[] receiveBuffer () {
 		return buffer;
 	}
 
+	/** Returns the buffer which is sent as a response. It must be at least large enough for {@link #prefix}, which is written at
+	 * the start. */
 	protected byte[] responseBuffer (DatagramPacket packet) {
 		return buffer;
 	}

@@ -37,7 +37,8 @@ public abstract class Retry {
 		this.name = name;
 	}
 
-	/** Starts a thread which calls {@link #initialize()} and then repeatedly calls {@link #retry()}. */
+	/** Starts a thread which calls {@link #initialize()} and then repeatedly calls {@link #retry()}. If it is already running, it
+	 * is stopped and then started. */
 	public void start () {
 		synchronized (runLock) {
 			stop();
@@ -68,7 +69,8 @@ public abstract class Retry {
 		}
 	}
 
-	/** Interrupts the retry thread and waits for it to terminate. */
+	/** Interrupts the retry thread and waits for it to terminate. If it is already stopped, nothing is done.
+	 * @return true if it was running. */
 	public boolean stop () {
 		synchronized (runLock) {
 			if (!running) return false;
