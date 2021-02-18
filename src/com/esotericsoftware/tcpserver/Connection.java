@@ -46,6 +46,8 @@ abstract public class Connection {
 	volatile boolean closed;
 	byte[] data = empty;
 
+	Object userObject;
+
 	public Connection (String category, String name, Socket socket) throws IOException {
 		this.category = category;
 		this.name = name;
@@ -211,6 +213,14 @@ abstract public class Connection {
 
 	public boolean isClosed () {
 		return closed;
+	}
+
+	public Object getUserObject () {
+		return userObject;
+	}
+
+	public void setUserObject (Object userObject) {
+		this.userObject = userObject;
 	}
 
 	static class Send {

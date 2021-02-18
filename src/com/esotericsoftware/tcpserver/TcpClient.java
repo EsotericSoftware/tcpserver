@@ -54,7 +54,7 @@ public class TcpClient extends Retry {
 			socket.connect(new InetSocketAddress(host, port), connectTimeout);
 			socket.setSoTimeout(readTimeout);
 			socket.setTcpNoDelay(false);
-		} catch (IOException ex) {
+		} catch (Throwable ex) {
 			if (ERROR) error(category, "Unable to connect: " + host + ":" + port);
 			failed();
 			return;

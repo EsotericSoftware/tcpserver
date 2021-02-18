@@ -22,14 +22,14 @@ package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
 
-/** Manages a thrad which calls {@link #retry()} repeatedly, sleeping when a try has failed. */
+/** Manages a thread which calls {@link #retry()} repeatedly, sleeping when a try has failed. */
 public abstract class Retry {
 	protected final String category, name;
 	protected volatile boolean running;
 	boolean daemon;
 	final Object runLock = new Object();
 	volatile Thread retryThread;
-	int delayIndex;
+	int retryCount;
 	int[] retryDelays = new int[] {1 * 1000, 3 * 1000, 5 * 1000, 8 * 1000, 13 * 1000};
 
 	public Retry (String category, String name) {
@@ -43,7 +43,7 @@ public abstract class Retry {
 		synchronized (runLock) {
 			stop();
 			if (TRACE) trace(category, "Started retry thread: " + name);
-			delayIndex = 0;
+			retryCount = 0;
 			running = true;
 			retryThread = new Thread(name) {
 				public void run () {
@@ -105,24 +105,33 @@ public abstract class Retry {
 
 	/** Subclasses should call this from {@link #retry()} to indicate success, resets the next failure sleep time. */
 	protected void success () {
-		delayIndex = 0;
+		retryCount = 0;
 	}
 
 	/** Subclasses should call this from {@link #retry()} to indicate failure, sleeps for some time. */
 	protected void failed () {
-		if (retryDelays[delayIndex] == 0) throw new RuntimeException("Retry thread failed: " + name);
+		int delay = retryDelays[retryCount % retryDelays.length];
+		if (delay == 0) throw new RuntimeException("Retry thread failed: " + name);
 		try {
-			Thread.sleep(retryDelays[delayIndex]);
+			Thread.sleep(delay);
 		} catch (InterruptedException ignored) {
 		}
-		delayIndex++;
-		if (delayIndex >= retryDelays.length) delayIndex = 0;
+		retryCount++;
 	}
 
 	/** The delays to use for repeated failures. If more failures occur than entries, the last entry is used. If a delay is zero,
 	 * the retry thread is stopped by throwing an exception. */
 	public void setRetryDelays (int... retryDelays) {
 		this.retryDelays = retryDelays;
+	}
+
+	/** Returns the number of retries since a success. */
+	public int getRetryCount () {
+		return retryCount;
+	}
+
+	public boolean isFirstTry () {
+		return retryCount == 0;
 	}
 
 	public boolean isRunning () {
