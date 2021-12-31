@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, Esoteric Software
+/* Copyright (c) 2017-2021, Esoteric Software
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -28,30 +28,26 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.concurrent.ArrayBlockingQueue;
 
 /** A bidirectional connection between the client and server. All methods are thread safe. */
 abstract public class Connection {
-	static private final byte[] empty = new byte[0];
-
 	final String category;
 	private final String name;
 	private final Socket socket;
+	final Protocol protocol;
 	final DataInputStream input;
 	final DataOutputStream output;
-	final Object outputLock = new Object();
 
-	final ArrayBlockingQueue sends = new ArrayBlockingQueue(1024, true);
 	Thread writeThread;
 	volatile boolean closed;
-	byte[] data = empty;
 
 	Object userObject;
 
-	public Connection (String category, String name, Socket socket) throws IOException {
+	public Connection (String category, String name, Socket socket, Protocol protocol) throws IOException {
 		this.category = category;
 		this.name = name;
 		this.socket = socket;
+		this.protocol = protocol;
 
 		try {
 			input = new DataInputStream(socket.getInputStream());
@@ -65,41 +61,7 @@ abstract public class Connection {
 		new Thread(name + "Read") {
 			public void run () {
 				try {
-					while (!closed) {
-						String message = input.readUTF();
-						if (message == null || closed) break;
-						String event, payload;
-						int index = message.indexOf(" ");
-						if (index != -1) {
-							event = message.substring(0, index).trim();
-							payload = message.substring(index + 1).trim();
-						} else {
-							event = message.trim();
-							payload = "";
-						}
-
-						int dataLength = readVarint(input);
-						if (dataLength > 0) {
-							if (closed) break;
-							if (data.length < dataLength) data = new byte[dataLength];
-							int offset = 0, remaining = dataLength;
-							while (true) {
-								int count = input.read(data, offset, remaining);
-								if (count == -1 || closed) break;
-								remaining -= count;
-								if (remaining == 0) break;
-								offset += count;
-							}
-						}
-
-						if (TRACE) trace(category, "Received: " + event + ", " + payload + (dataLength > 0 ? ", " + dataLength : ""));
-						try {
-							receive(event, payload, data, dataLength);
-						} catch (Throwable ex) {
-							if (ERROR) error(category, "Error processing message: " + message, ex);
-							break;
-						}
-					}
+					protocol.read(Connection.this);
 				} catch (EOFException ex) {
 					if (TRACE) trace(category, "Connection has closed.", ex);
 				} catch (IOException ex) {
@@ -120,18 +82,7 @@ abstract public class Connection {
 		writeThread = new Thread(name + "Write") {
 			public void run () {
 				try {
-					while (!closed) {
-						try {
-							Object object = sends.take();
-							if (object instanceof String)
-								sendBlocking((String)object, null, 0, 0);
-							else {
-								Send send = (Send)object;
-								sendBlocking(send.message, send.bytes, send.offset, send.count);
-							}
-						} catch (InterruptedException ignored) {
-						}
-					}
+					protocol.write(Connection.this);
 				} finally {
 					close();
 					if (TRACE) trace(category, "Write thread stopped.");
@@ -143,60 +94,49 @@ abstract public class Connection {
 
 	/** Sends the string without waiting for the send to complete. */
 	public void send (String message) {
-		if (TRACE) trace(category, "Queued: " + message);
-		sends.add(message);
+		protocol.send(this, message);
 	}
 
 	/** @see #send(String, byte[], int, int) */
 	public void send (String message, byte[] bytes) {
-		send(message, bytes, 0, bytes.length);
+		protocol.send(this, message, bytes, 0, bytes.length);
 	}
 
 	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
 	 * during the wait.
 	 * @param bytes May be null if count is 0. */
 	public void send (String message, byte[] bytes, int offset, int count) {
-		if (count != 0 && bytes == null) throw new IllegalArgumentException("bytes cannot be null when count != 0: " + count);
-		if (TRACE) trace(category, "Queued: " + message + ", " + count);
-		Send send = new Send();
-		send.message = message;
-		send.bytes = bytes;
-		send.offset = offset;
-		send.count = count;
-		sends.add(send);
+		protocol.send(this, message, bytes, offset, count);
 	}
 
 	/** Sends the string, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message) {
-		return sendBlocking(message, null, 0, 0);
+		return protocol.sendBlocking(this, message, null, 0, 0);
 	}
 
 	/** @see #sendBlocking(String, byte[], int, int) */
 	public boolean sendBlocking (String message, byte[] bytes) {
-		return sendBlocking(message, bytes, 0, bytes.length);
+		return protocol.sendBlocking(this, message, bytes, 0, bytes.length);
 	}
 
 	/** Sends the string and bytes, blocking until sending is complete.
 	 * @param bytes May be null if count is 0.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
-		if (count != 0 && bytes == null) throw new IllegalArgumentException("bytes cannot be null when count != 0: " + count);
-		if (closed) return false;
-		try {
-			synchronized (outputLock) {
-				if (TRACE) trace(category, "Sent: " + message + (count > 0 ? ", " + count : ""));
-				output.writeUTF(message);
-				writeVarint(count, output);
-				if (count != 0) output.write(bytes, offset, count);
-				output.flush();
-			}
-			return true;
-		} catch (IOException ex) {
-			if (ERROR && !closed) error(category, "Error writing to connection: " + message, ex);
-			close();
-			return false;
-		}
+		return protocol.sendBlocking(this, message, bytes, offset, count);
+	}
+
+	public Protocol getProtocol () {
+		return protocol;
+	}
+
+	public DataInputStream getInput () {
+		return input;
+	}
+
+	public DataOutputStream getOutput () {
+		return output;
 	}
 
 	/** @param bytes May be null if count is 0. */
@@ -221,12 +161,5 @@ abstract public class Connection {
 
 	public void setUserObject (Object userObject) {
 		this.userObject = userObject;
-	}
-
-	static class Send {
-		String message;
-		byte[] bytes;
-		int offset;
-		int count;
 	}
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, Esoteric Software
+/* Copyright (c) 2017-2021, Esoteric Software
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -30,6 +30,7 @@ import java.net.Socket;
 public class TcpClient extends Retry {
 	private String host;
 	private int port;
+	private final Protocol protocol;
 
 	private int connectTimeout = 10000, readTimeout;
 	volatile ClientConnection connection;
@@ -42,9 +43,14 @@ public class TcpClient extends Retry {
 	}
 
 	public TcpClient (String category, String name, String host, int port) {
+		this(category, name, host, port, new DefaultProtocol());
+	}
+
+	public TcpClient (String category, String name, String host, int port, Protocol protocol) {
 		super(category, name);
 		this.host = host;
 		this.port = port;
+		this.protocol = protocol;
 	}
 
 	protected void retry () {
@@ -70,7 +76,7 @@ public class TcpClient extends Retry {
 			if (INFO) info(category, "Connected: " + socket.getInetAddress() + ":" + socket.getPort());
 
 			try {
-				connection = new ClientConnection(category, name, socket);
+				connection = new ClientConnection(category, name, socket, protocol);
 				connection.start();
 			} catch (IOException ex) {
 				connection = null;
@@ -239,8 +245,8 @@ public class TcpClient extends Retry {
 	}
 
 	class ClientConnection extends Connection {
-		public ClientConnection (String category, String name, Socket socket) throws IOException {
-			super(category, name, socket);
+		public ClientConnection (String category, String name, Socket socket, Protocol protocol) throws IOException {
+			super(category, name, socket, protocol);
 		}
 
 		public void receive (String event, String payload, byte[] bytes, int count) {

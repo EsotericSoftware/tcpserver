@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, Esoteric Software
+/* Copyright (c) 2017-2021, Esoteric Software
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following
@@ -64,7 +64,7 @@ abstract public class TcpServer extends Retry {
 				}
 				success();
 				try {
-					ServerConnection connection = new ServerConnection(category, name, socket);
+					ServerConnection connection = new ServerConnection(category, name, socket, newProtocol());
 					connections.add(connection);
 					if (INFO) info(category, "Client connected: " + socket.getInetAddress() + ":" + socket.getPort());
 					connection.start();
@@ -80,6 +80,10 @@ abstract public class TcpServer extends Retry {
 		} finally {
 			if (INFO) info(category, "Server stopped: TCP " + port);
 		}
+	}
+
+	protected Protocol newProtocol () {
+		return new DefaultProtocol();
 	}
 
 	protected void stopped () {
@@ -142,8 +146,8 @@ abstract public class TcpServer extends Retry {
 	}
 
 	private class ServerConnection extends Connection {
-		public ServerConnection (String category, String name, Socket socket) throws IOException {
-			super(category, name, socket);
+		public ServerConnection (String category, String name, Socket socket, Protocol protocol) throws IOException {
+			super(category, name, socket, protocol);
 		}
 
 		public boolean isValid () {
