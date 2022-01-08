@@ -24,20 +24,24 @@ import java.io.IOException;
 
 /** Allows customizing the data that is sent and received. */
 public interface Protocol {
-	public void read (Connection connection) throws IOException;
+	static public interface ProtocolRead extends Protocol {
+		public void readThread (Connection connection) throws IOException;
+	}
 
-	public void write (Connection connection);
+	static public interface ProtocolWrite extends Protocol {
+		public void writeThread (Connection connection);
 
-	/** Sends the string without waiting for the send to complete. */
-	public void send (Connection connection, String message);
+		/** Sends the string without waiting for the send to complete. */
+		public void send (Connection connection, String message);
 
-	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
-	 * during the wait.
-	 * @param bytes May be null if count is 0. */
-	public void send (Connection connection, String message, byte[] bytes, int offset, int count);
+		/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
+		 * during the wait.
+		 * @param bytes May be null if count is 0. */
+		public void send (Connection connection, String message, byte[] bytes, int offset, int count);
 
-	/** Sends the string and bytes, blocking until sending is complete.
-	 * @param bytes May be null if count is 0.
-	 * @return false if the connection is closed or the send failed (which closes the connection). */
-	public boolean sendBlocking (Connection connection, String message, byte[] bytes, int offset, int count);
+		/** Sends the string and bytes, blocking until sending is complete.
+		 * @param bytes May be null if count is 0.
+		 * @return false if the connection is closed or the send failed (which closes the connection). */
+		public boolean sendBlocking (Connection connection, String message, byte[] bytes, int offset, int count);
+	}
 }

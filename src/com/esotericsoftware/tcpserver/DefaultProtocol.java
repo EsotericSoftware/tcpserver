@@ -28,15 +28,18 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
 
+import com.esotericsoftware.tcpserver.Protocol.ProtocolRead;
+import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
+
 /** The default protocol for sending a string and an optional byte array. */
-public class DefaultProtocol implements Protocol {
+public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 	static private final byte[] empty = new byte[0];
 
 	private final Object outputLock = new Object();
 	private final ArrayBlockingQueue sends = new ArrayBlockingQueue(1024, true);
 	byte[] data = empty;
 
-	public void read (Connection connection) throws IOException {
+	public void readThread (Connection connection) throws IOException {
 		DataInputStream input = connection.input;
 
 		while (!connection.closed) {
@@ -76,7 +79,7 @@ public class DefaultProtocol implements Protocol {
 		}
 	}
 
-	public void write (Connection connection) {
+	public void writeThread (Connection connection) {
 		while (!connection.closed) {
 			try {
 				Object object = sends.take();

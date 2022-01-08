@@ -29,6 +29,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
 
+import com.esotericsoftware.tcpserver.Protocol.ProtocolRead;
+import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
+
 /** A bidirectional connection between the client and server. All methods are thread safe. */
 abstract public class Connection {
 	final String category;
@@ -44,6 +47,8 @@ abstract public class Connection {
 	Object userObject;
 
 	public Connection (String category, String name, Socket socket, Protocol protocol) throws IOException {
+		if (!(protocol instanceof ProtocolRead) && !(protocol instanceof ProtocolWrite))
+			throw new IllegalArgumentException("protocol must extends ProtocolRead and/or ProtocolWrite.");
 		this.category = category;
 		this.name = name;
 		this.socket = socket;
@@ -58,73 +63,77 @@ abstract public class Connection {
 	}
 
 	void start () {
-		new Thread(name + "Read") {
-			public void run () {
-				try {
-					protocol.read(Connection.this);
-				} catch (EOFException ex) {
-					if (TRACE) trace(category, "Connection has closed.", ex);
-				} catch (IOException ex) {
-					if (!closed) {
-						if (ex.getMessage() != null && ex.getMessage().contains("Connection reset")) {
-							if (TRACE) trace(category, "Client connection reset.", ex);
-						} else {
-							if (ERROR) error(category, "Error reading from connection.", ex);
+		if (protocol instanceof ProtocolRead) {
+			new Thread(name + "Read") {
+				public void run () {
+					try {
+						((ProtocolRead)protocol).readThread(Connection.this);
+					} catch (EOFException ex) {
+						if (TRACE) trace(category, "Connection has closed.", ex);
+					} catch (IOException ex) {
+						if (!closed) {
+							if (ex.getMessage() != null && ex.getMessage().contains("Connection reset")) {
+								if (TRACE) trace(category, "Client connection reset.", ex);
+							} else {
+								if (ERROR) error(category, "Error reading from connection.", ex);
+							}
 						}
+					} finally {
+						close();
+						if (TRACE) trace(category, "Read thread stopped.");
 					}
-				} finally {
-					close();
-					if (TRACE) trace(category, "Read thread stopped.");
 				}
-			}
-		}.start();
+			}.start();
+		}
 
-		writeThread = new Thread(name + "Write") {
-			public void run () {
-				try {
-					protocol.write(Connection.this);
-				} finally {
-					close();
-					if (TRACE) trace(category, "Write thread stopped.");
+		if (protocol instanceof ProtocolWrite) {
+			writeThread = new Thread(name + "Write") {
+				public void run () {
+					try {
+						((ProtocolWrite)protocol).writeThread(Connection.this);
+					} finally {
+						close();
+						if (TRACE) trace(category, "Write thread stopped.");
+					}
 				}
-			}
-		};
-		writeThread.start();
+			};
+			writeThread.start();
+		}
 	}
 
 	/** Sends the string without waiting for the send to complete. */
 	public void send (String message) {
-		protocol.send(this, message);
+		((ProtocolWrite)protocol).send(this, message);
 	}
 
 	/** @see #send(String, byte[], int, int) */
 	public void send (String message, byte[] bytes) {
-		protocol.send(this, message, bytes, 0, bytes.length);
+		((ProtocolWrite)protocol).send(this, message, bytes, 0, bytes.length);
 	}
 
 	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
 	 * during the wait.
 	 * @param bytes May be null if count is 0. */
 	public void send (String message, byte[] bytes, int offset, int count) {
-		protocol.send(this, message, bytes, offset, count);
+		((ProtocolWrite)protocol).send(this, message, bytes, offset, count);
 	}
 
 	/** Sends the string, blocking until sending is complete.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message) {
-		return protocol.sendBlocking(this, message, null, 0, 0);
+		return ((ProtocolWrite)protocol).sendBlocking(this, message, null, 0, 0);
 	}
 
 	/** @see #sendBlocking(String, byte[], int, int) */
 	public boolean sendBlocking (String message, byte[] bytes) {
-		return protocol.sendBlocking(this, message, bytes, 0, bytes.length);
+		return ((ProtocolWrite)protocol).sendBlocking(this, message, bytes, 0, bytes.length);
 	}
 
 	/** Sends the string and bytes, blocking until sending is complete.
 	 * @param bytes May be null if count is 0.
 	 * @return false if the connection is closed or the send failed (which closes the connection). */
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
-		return protocol.sendBlocking(this, message, bytes, offset, count);
+		return ((ProtocolWrite)protocol).sendBlocking(this, message, bytes, offset, count);
 	}
 
 	public Protocol getProtocol () {
