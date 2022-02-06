@@ -25,29 +25,23 @@ import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.SocketTimeoutException;
-import java.util.Enumeration;
 
 public class BroadcastClient extends Retry {
 	private int port, timeoutMillis = 3000;
+	private final UdpBroadcast broadcast;
 	private final byte[] receive = new byte[BroadcastServer.prefix.length];
 	private final byte[] request = new byte[BroadcastServer.prefix.length];
 
-	public BroadcastClient (String category, String name) {
-		this(category, name, 0);
-	}
-
-	public BroadcastClient (String category, String name, int port) {
+	public BroadcastClient (String category, String name, UdpBroadcast broadcast, int port) {
 		super(category, name);
+		this.broadcast = broadcast;
 		this.port = port;
 		setRetryDelays(6);
 	}
 
 	protected void retry () {
-		DatagramPacket packet = find(port, timeoutMillis, requestBuffer(), receiveBuffer());
+		DatagramPacket packet = find(category, broadcast, port, timeoutMillis, requestBuffer(), receiveBuffer());
 		if (running && packet != null) received(packet);
 		failed(); // Always sleep.
 	}
@@ -85,64 +79,44 @@ public class BroadcastClient extends Retry {
 	}
 
 	/** @return May be null. */
-	static public DatagramPacket find (int port, int timeoutMillis) {
-		byte[] request = new byte[BroadcastServer.prefix.length + 4];
-		byte[] receive = new byte[BroadcastServer.prefix.length];
-		return find(port, timeoutMillis, request, receive);
+	static public DatagramPacket find (String category, UdpBroadcast broadcast, int port, int timeoutMillis) {
+		byte[] buffer = new byte[BroadcastServer.prefix.length];
+		return find(category, broadcast, port, timeoutMillis, buffer, buffer);
 	}
 
 	/** @return May be null. */
-	static public DatagramPacket find (int port, int timeoutMillis, byte[] requestBuffer, byte[] receiveBuffer) {
-		System.arraycopy(BroadcastServer.prefix, 0, requestBuffer, 0, BroadcastServer.prefix.length);
-		DatagramSocket socket = null;
-		try {
-			socket = new DatagramSocket();
-			for (Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces(); ifaces.hasMoreElements();) {
-				NetworkInterface iface = ifaces.nextElement();
-				for (Enumeration<InetAddress> addresses = iface.getInetAddresses(); addresses.hasMoreElements();) {
-					byte[] ip = addresses.nextElement().getAddress();
-					ip[3] = -1; // 255.255.255.0
-					try {
-						socket.send(new DatagramPacket(requestBuffer, requestBuffer.length, InetAddress.getByAddress(ip), port));
-					} catch (Exception ignored) {
-					}
-					ip[2] = -1; // 255.255.0.0
-					try {
-						socket.send(new DatagramPacket(requestBuffer, requestBuffer.length, InetAddress.getByAddress(ip), port));
-					} catch (Exception ignored) {
-					}
-				}
-			}
-			if (DEBUG) debug("broadcast", "Broadcasted on port: UDP " + port);
+	static public DatagramPacket find (String category, UdpBroadcast broadcast, int port, int timeoutMillis, byte[] requestBuffer,
+		byte[] receiveBuffer) {
 
-			socket.setSoTimeout(timeoutMillis);
+		System.arraycopy(BroadcastServer.prefix, 0, requestBuffer, 0, BroadcastServer.prefix.length);
+
+		try {
+			broadcast.bind();
+
+			if (DEBUG) debug(category, "Broadcast to port: UDP " + port);
+			broadcast.broadcast(port, requestBuffer);
+
 			DatagramPacket packet = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+			broadcast.getSocket().setSoTimeout(timeoutMillis);
 			try {
-				socket.receive(packet);
+				broadcast.getSocket().receive(packet);
 			} catch (SocketTimeoutException ex) {
-				if (DEBUG) debug("broadcast", "Host discovery timed out.");
+				if (DEBUG) debug(category, "Host discovery timed out.");
 				return null;
 			}
-			int i = 0;
-			for (int n = BroadcastServer.prefix.length; i < n; i++) {
-				if (receiveBuffer[i] != BroadcastServer.prefix[i]) {
-					if (DEBUG) {
-						StringBuilder buffer = new StringBuilder();
-						for (i = 0; i < n; i++)
-							buffer.append(Integer.toHexString(receiveBuffer[i]) + " ");
-						buffer.setLength(buffer.length() - 1);
-						debug("broadcast", "Client received invalid packet, prefix: " + buffer);
-					}
-					return null;
-				}
+
+			if (!BroadcastServer.hasPrefix(packet)) {
+				if (DEBUG) debug(category, "Client received invalid UDP packet, prefix: " + Util.toString(packet));
+				return null;
 			}
-			if (INFO) info("broadcast", "Discovered server: " + packet.getAddress());
+
+			if (INFO) info(category, "Discovered server: " + packet.getAddress());
 			return packet;
 		} catch (IOException ex) {
-			if (ERROR) error("broadcast", "Host discovery failed.", ex);
+			if (ERROR) error(category, "Host discovery failed.", ex);
 			return null;
 		} finally {
-			closeQuietly(socket);
+			closeQuietly(broadcast);
 		}
 	}
 }

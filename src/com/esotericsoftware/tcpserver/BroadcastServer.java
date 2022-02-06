@@ -21,111 +21,66 @@
 package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
-import static com.esotericsoftware.tcpserver.Util.*;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.SocketException;
 
-public class BroadcastServer extends Retry {
+import com.esotericsoftware.tcpserver.UdpBroadcast.Subnets;
+
+public class BroadcastServer extends UdpServer {
 	static public final byte[] prefix = new byte[] {62, 126, -17, 61, 127, -16, 63, 125, -18};
 
-	private int port;
-	private DatagramSocket socket;
-	private final byte[] buffer = new byte[prefix.length];
-
 	public BroadcastServer (String category, String name) {
-		this(category, name, 0);
+		super(category, name);
 	}
 
 	public BroadcastServer (String category, String name, int port) {
-		super(category, name);
-		this.port = port;
+		super(category, name, port);
 	}
 
-	protected void retry () {
-		try {
-			socket = new DatagramSocket(port);
-		} catch (Exception ex) {
-			if (ERROR) error(category, "Unable to start broadcast server.", ex);
-			failed();
-			return;
-		}
-		success();
-		try {
-			if (INFO) info(category, "Listening on port: UDP " + port);
-			byte[] receiveBuffer = receiveBuffer();
-			outer:
-			while (running) {
-				DatagramPacket packet = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-				try {
-					socket.receive(packet);
-				} catch (SocketException ex) {
-					if (!running) return;
-					throw ex;
-				}
-
-				int n = prefix.length;
-				if (packet.getLength() < n) {
-					if (DEBUG) debug(category, "Server received invalid packet, length: " + packet.getLength());
-				} else {
-					for (int i = 0; i < n; i++) {
-						if (receiveBuffer[i] != prefix[i]) {
-							if (DEBUG) {
-								StringBuilder buffer = new StringBuilder();
-								for (i = 0; i < n; i++)
-									buffer.append(Integer.toHexString(receiveBuffer[i]) + " ");
-								buffer.setLength(buffer.length() - 1);
-								debug(category, "Server received invalid packet, prefix: " + buffer);
-							}
-							continue outer;
-						}
-					}
-
-					byte[] responseBuffer = responseBuffer(packet);
-					System.arraycopy(prefix, 0, responseBuffer, 0, prefix.length);
-					packet = new DatagramPacket(responseBuffer, responseBuffer.length, packet.getAddress(), packet.getPort());
-					socket.send(packet);
-				}
-			}
-		} catch (Exception ex) {
-			if (ERROR) error(category, "Unexpected broadcast server error.", ex);
-			closeQuietly(socket);
-			failed();
-		} finally {
-			if (INFO) info(category, "Server stopped: UDP " + port);
-		}
-	}
-
-	/** Returns the buffer into which the received packet will be written. It must be at least large enough for {@link #prefix}. */
+	/** By default it must be at least large enough for {@link #prefix}. */
 	protected byte[] receiveBuffer () {
-		return buffer;
+		return new byte[prefix.length];
 	}
 
-	/** Returns the buffer which is sent as a response. It must be at least large enough for {@link #prefix}, which is written at
-	 * the start. */
-	protected byte[] responseBuffer (DatagramPacket packet) {
-		return buffer;
+	protected final void received (DatagramPacket packet) throws IOException {
+		if (!isValid(packet)) return;
+
+		if (DEBUG) debug(category, "Received broadcast: " + packet.getAddress() + ":" + packet.getPort());
+
+		byte[] response = response(packet);
+		if (response != null) socket.send(new DatagramPacket(response, response.length, packet.getAddress(), packet.getPort()));
 	}
 
-	protected void stopped () {
-		closeQuietly(socket);
+	/** Returns the buffer to send as a response, or null not to send a response. By default it must have {@link #prefix} at the
+	 * start. */
+	protected byte[] response (DatagramPacket packet) {
+		return prefix;
 	}
 
-	public int getPort () {
-		return port;
+	/** True if the packet data is valid. By default it must have {@link #prefix} at the start. */
+	protected boolean isValid (DatagramPacket packet) {
+		if (!hasPrefix(packet)) {
+			if (DEBUG) debug(category, "Server received invalid UDP packet, prefix: " + Util.toString(packet));
+			return false;
+		}
+		return true;
 	}
 
-	public void setPort (int port) {
-		this.port = port;
+	static boolean hasPrefix (DatagramPacket packet) {
+		int length = packet.getLength(), prefixLength = prefix.length;
+		if (length < prefixLength) return false;
+		byte[] data = packet.getData();
+		for (int i = 0; i < prefixLength; i++)
+			if (data[i] != prefix[i]) return false;
+		return true;
 	}
 
 	static public void main (String[] args) throws Exception {
 		TRACE();
 
-		BroadcastServer server = new BroadcastServer("broadcast", "test", 53333);
-		server.start();
+		new BroadcastServer("server", "test", 53333).start();
 
-		System.out.println(BroadcastClient.find(53333, 1000).getAddress());
+		System.out.println(BroadcastClient.find("client", new UdpBroadcast(Subnets.classC), 53333, 1000).getAddress());
 	}
 }

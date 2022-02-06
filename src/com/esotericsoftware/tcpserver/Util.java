@@ -24,6 +24,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
 
 public class Util {
 	static public void closeQuietly (Closeable closeable) {
@@ -81,5 +82,15 @@ public class Util {
 		if ((b & 0x80) == 0) return result;
 		b = input.read();
 		return result | (b & 0x7F) << 28;
+	}
+
+	static public String toString (DatagramPacket packet) {
+		int length = packet.getLength();
+		byte[] data = packet.getData();
+		StringBuilder buffer = new StringBuilder(length << 1);
+		for (int i = 0; i < length; i++)
+			buffer.append(Integer.toHexString(data[i] & 0xff) + ' ');
+		buffer.setLength(buffer.length() - 1);
+		return buffer.toString();
 	}
 }
