@@ -35,7 +35,7 @@ import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
 /** A bidirectional connection between the client and server. All methods are thread safe. */
 abstract public class Connection {
 	final String category;
-	private final String name;
+	final String name;
 	private final Socket socket;
 	final Protocol protocol;
 	final DataInputStream input;
@@ -162,6 +162,14 @@ abstract public class Connection {
 
 	public boolean isClosed () {
 		return closed;
+	}
+
+	public String getCategory () {
+		return category;
+	}
+
+	public String getName () {
+		return name;
 	}
 
 	public Object getUserObject () {
