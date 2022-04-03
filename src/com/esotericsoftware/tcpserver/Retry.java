@@ -141,4 +141,12 @@ public abstract class Retry {
 	public void setDaemon (boolean daemon) {
 		this.daemon = daemon;
 	}
+
+	public String getCategory () {
+		return category;
+	}
+
+	public String toString () {
+		return name;
+	}
 }

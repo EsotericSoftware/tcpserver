@@ -34,7 +34,6 @@ public class TcpClient extends Retry {
 
 	private int connectTimeout = 10000, readTimeout;
 	volatile ClientConnection connection;
-	private int reconnectDelay = 10 * 1000;
 	private final Object waitForConnection = new Object();
 	final Object waitForClose = new Object();
 
@@ -113,7 +112,7 @@ public class TcpClient extends Retry {
 		return true;
 	}
 
-	public boolean send (String message, byte[] bytes) {
+	public boolean send (String message, byte... bytes) {
 		return send(message, bytes, 0, bytes.length);
 	}
 
@@ -136,7 +135,7 @@ public class TcpClient extends Retry {
 		return connection.sendBlocking(message);
 	}
 
-	public boolean sendBlocking (String message, byte[] bytes) {
+	public boolean sendBlocking (String message, byte... bytes) {
 		return sendBlocking(message, bytes);
 	}
 

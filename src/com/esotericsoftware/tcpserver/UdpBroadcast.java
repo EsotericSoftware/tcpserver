@@ -60,7 +60,7 @@ public class UdpBroadcast implements Closeable {
 		socket.bind(null);
 	}
 
-	public void broadcast (int port, byte[] buffer) throws IOException {
+	public void broadcast (int port, byte... buffer) throws IOException {
 		if (socket == null) throw new IllegalStateException();
 
 		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);

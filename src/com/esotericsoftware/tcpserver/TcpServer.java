@@ -108,7 +108,7 @@ abstract public class TcpServer extends Retry {
 			connection.send(message);
 	}
 
-	public void send (String message, byte[] bytes) {
+	public void send (String message, byte... bytes) {
 		send(message, bytes, 0, bytes.length);
 	}
 
@@ -124,7 +124,7 @@ abstract public class TcpServer extends Retry {
 		return success;
 	}
 
-	public boolean sendBlocking (String message, byte[] bytes) {
+	public boolean sendBlocking (String message, byte... bytes) {
 		return sendBlocking(message, bytes, 0, bytes.length);
 	}
 
