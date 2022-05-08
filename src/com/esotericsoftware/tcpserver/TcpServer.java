@@ -46,9 +46,9 @@ abstract public class TcpServer extends Retry {
 
 	protected void retry () {
 		try {
-			server = new ServerSocket(port);
+			server = newProtocol().newServerSocket(port);
 		} catch (Exception ex) {
-			if (ERROR) error(category, "Unable to start TCP server.", ex);
+			if (ERROR) error(category, "Unable to open TCP server socket.", ex);
 			failed();
 			return;
 		}
@@ -66,6 +66,7 @@ abstract public class TcpServer extends Retry {
 				try {
 					ServerConnection connection = new ServerConnection(category, name, socket, newProtocol());
 					connections.add(connection);
+					newConnection(connection);
 					if (INFO) info(category, "Client connected: " + socket.getInetAddress() + ":" + socket.getPort());
 					connection.start();
 					connected(connection);
@@ -93,6 +94,11 @@ abstract public class TcpServer extends Retry {
 		closeQuietly(server);
 	}
 
+	/** Called when a new connection has been created, before it is started. */
+	public void newConnection (Connection connection) {
+	}
+
+	/** Called after a new connection has been started. */
 	public void connected (Connection connection) {
 	}
 

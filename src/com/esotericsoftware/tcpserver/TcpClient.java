@@ -55,7 +55,13 @@ public class TcpClient extends Retry {
 	protected void retry () {
 		Socket socket = null;
 		try {
-			socket = new Socket();
+			socket = protocol.newClientSocket();
+		} catch (Throwable ex) {
+			if (ERROR) error(category, "Unable to open TCP client socket.", ex);
+			failed();
+			return;
+		}
+		try {
 			socket.connect(new InetSocketAddress(host, port), connectTimeout);
 			socket.setSoTimeout(readTimeout);
 			socket.setTcpNoDelay(false);
@@ -76,6 +82,7 @@ public class TcpClient extends Retry {
 
 			try {
 				connection = new ClientConnection(category, name, socket, protocol);
+				newConnection(connection);
 				connection.start();
 			} catch (IOException ex) {
 				connection = null;
@@ -105,7 +112,7 @@ public class TcpClient extends Retry {
 	public boolean send (String message) {
 		Connection connection = getConnection();
 		if (connection == null) {
-			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			if (DEBUG) debug(category, "Unable to send, not connected: " + message);
 			return false;
 		}
 		connection.send(message);
@@ -119,7 +126,7 @@ public class TcpClient extends Retry {
 	public boolean send (String message, byte[] bytes, int offset, int count) {
 		Connection connection = getConnection();
 		if (connection == null) {
-			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			if (DEBUG) debug(category, "Unable to send, not connected: " + message);
 			return false;
 		}
 		connection.send(message, bytes, offset, count);
@@ -129,7 +136,7 @@ public class TcpClient extends Retry {
 	public boolean sendBlocking (String message) {
 		Connection connection = getConnection();
 		if (connection == null) {
-			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			if (DEBUG) debug(category, "Unable to send, not connected: " + message);
 			return false;
 		}
 		return connection.sendBlocking(message);
@@ -142,12 +149,17 @@ public class TcpClient extends Retry {
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
 		Connection connection = getConnection();
 		if (connection == null) {
-			if (DEBUG) debug(category, "Unable to send, connection is closed: " + message);
+			if (DEBUG) debug(category, "Unable to send, not connected: " + message);
 			return false;
 		}
 		return connection.sendBlocking(message, bytes, offset, count);
 	}
 
+	/** Called when a new connection has been created, before it is started. */
+	public void newConnection (Connection connection) {
+	}
+
+	/** Called after a new connection has been started. */
 	public void connected (Connection connection) {
 	}
 

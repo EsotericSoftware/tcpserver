@@ -21,9 +21,19 @@
 package com.esotericsoftware.tcpserver;
 
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 /** Allows customizing the data that is sent and received. */
 public interface Protocol {
+	default public Socket newClientSocket () throws Exception {
+		return new Socket();
+	}
+
+	default public ServerSocket newServerSocket (int port) throws Exception {
+		return new ServerSocket(port);
+	}
+
 	static public interface ProtocolRead extends Protocol {
 		public void readThread (Connection connection) throws IOException;
 	}
