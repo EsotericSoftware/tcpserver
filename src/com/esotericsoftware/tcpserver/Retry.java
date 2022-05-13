@@ -112,9 +112,11 @@ public abstract class Retry {
 	protected void failed () {
 		int delay = retryDelays[retryCount % retryDelays.length];
 		if (delay == 0) throw new RuntimeException("Retry thread failed: " + name);
-		try {
-			if (running) Thread.sleep(delay);
-		} catch (InterruptedException ignored) {
+		synchronized (runLock) {
+			try {
+				if (running) runLock.wait(delay);
+			} catch (InterruptedException ignored) {
+			}
 		}
 		retryCount++;
 	}

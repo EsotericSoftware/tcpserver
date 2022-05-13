@@ -23,6 +23,7 @@ package com.esotericsoftware.tcpserver;
 import static com.esotericsoftware.minlog.Log.*;
 import static com.esotericsoftware.tcpserver.Util.*;
 
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -33,7 +34,7 @@ import com.esotericsoftware.tcpserver.Protocol.ProtocolRead;
 import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
 
 /** A bidirectional connection between the client and server. All methods are thread safe. */
-abstract public class Connection {
+abstract public class Connection implements Closeable {
 	final String category;
 	final String name;
 	private final Socket socket;
