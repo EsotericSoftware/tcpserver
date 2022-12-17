@@ -8,7 +8,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
 
-/** A protocol for sending and receiving strings. */
+/** A protocol for sending bytes. */
 public class BinaryProtocolWrite implements ProtocolWrite {
 	private final Object outputLock = new Object();
 	private final ArrayBlockingQueue<byte[]> sends = new ArrayBlockingQueue(1024, true);
