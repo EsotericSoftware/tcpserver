@@ -5,6 +5,7 @@ import static com.esotericsoftware.minlog.Log.*;
 import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import com.esotericsoftware.tcpserver.Protocol.ProtocolWrite;
@@ -33,9 +34,7 @@ public class BinaryProtocolWrite implements ProtocolWrite {
 		if (message != null) throw new IllegalArgumentException("message must be null.");
 
 		if (TRACE) trace(connection.category, "Queued: " + text(bytes, offset, count));
-		byte[] copy = new byte[count];
-		System.arraycopy(bytes, offset, copy, 0, count);
-		sends.add(copy);
+		sends.add(Arrays.copyOf(bytes, count));
 	}
 
 	public boolean sendBlocking (Connection connection, String message, byte[] bytes, int offset, int count) {

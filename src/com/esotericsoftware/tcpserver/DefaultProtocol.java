@@ -26,6 +26,7 @@ import static com.esotericsoftware.tcpserver.Util.*;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import com.esotericsoftware.tcpserver.Protocol.ProtocolRead;
@@ -102,11 +103,9 @@ public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 		}
 
 		if (TRACE) trace(connection.category, "Queued: " + message + ", " + count);
-		byte[] copy = new byte[count];
-		System.arraycopy(bytes, offset, copy, 0, count);
 		DefaultProtocol.Send send = new Send();
 		send.message = message;
-		send.bytes = copy;
+		send.bytes = Arrays.copyOf(bytes, count);
 		send.count = count;
 		sends.add(send);
 	}

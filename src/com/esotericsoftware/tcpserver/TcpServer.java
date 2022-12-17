@@ -141,7 +141,9 @@ abstract public class TcpServer extends Retry {
 		return success;
 	}
 
-	abstract public void receive (Connection connection, String event, String payload, byte[] bytes, int count);
+	/** Override to handle a connection receiving data. */
+	public void receive (Connection connection, String event, String payload, byte[] bytes, int count) {
+	}
 
 	public int getPort () {
 		return port;
