@@ -143,7 +143,7 @@ public class TcpClient extends Retry {
 	}
 
 	public boolean sendBlocking (String message, byte... bytes) {
-		return sendBlocking(message, bytes);
+		return sendBlocking(message, bytes, 0, bytes.length);
 	}
 
 	public boolean sendBlocking (String message, byte[] bytes, int offset, int count) {
