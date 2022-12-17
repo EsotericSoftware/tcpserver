@@ -2,6 +2,7 @@
 package com.esotericsoftware.tcpserver;
 
 import static com.esotericsoftware.minlog.Log.*;
+import static com.esotericsoftware.tcpserver.Util.*;
 
 import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -71,12 +72,12 @@ public class BinaryProtocolWrite implements ProtocolWrite {
 	static public void main (String[] args) throws Exception {
 		class BinaryProtocolTest extends BinaryProtocolWrite implements ProtocolRead {
 			public void readThread (Connection connection) throws IOException {
-				byte[] bytes = new byte[1];
+				byte[] bytes = new byte[4];
 				while (!connection.isClosed()) {
-					int count = connection.input.read(bytes, 0, 1);
-					if (count == -1) continue;
-					System.out.println(connection.name + " received: " + bytes[0]);
-					connection.receive(null, null, bytes, 1);
+					int count = connection.input.read();
+					if (!readFully(connection, bytes, 0, count)) break;
+					System.out.println(connection.name + " received: " + text(bytes, 0, count));
+					connection.receive(null, null, bytes, count);
 				}
 			}
 		}
@@ -88,19 +89,19 @@ public class BinaryProtocolWrite implements ProtocolWrite {
 
 			public void connected (Connection connection) {
 				super.connected(connection);
-				connection.send(null, new byte[] {1});
-				connection.send(null, new byte[] {2});
+				connection.send(null, new byte[] {1, 1});
+				connection.send(null, new byte[] {2, 2, 3});
 			}
 
 			public void receive (Connection connection, String event, String payload, byte[] bytes, int count) {
-				connection.send(null, new byte[] {4});
+				connection.send(null, new byte[] {1, 6});
 			}
 		};
 		server.start();
 
 		new TcpClient("client", "Client", "localhost", 4567, new BinaryProtocolTest()) {
 			public void receive (String event, String payload, byte[] bytes, int count) {
-				if (bytes[0] == 1) connection.send(null, new byte[] {3});
+				if (bytes[0] == 1) connection.send(null, new byte[] {2, 4, 5});
 			}
 		}.start();
 	}

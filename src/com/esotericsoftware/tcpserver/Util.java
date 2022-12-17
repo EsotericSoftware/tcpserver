@@ -21,6 +21,7 @@
 package com.esotericsoftware.tcpserver;
 
 import java.io.Closeable;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -82,6 +83,19 @@ public class Util {
 		if ((b & 0x80) == 0) return result;
 		b = input.read();
 		return result | (b & 0x7F) << 28;
+	}
+
+	static public boolean readFully (Connection connection, byte[] data, int offset, int length) throws IOException {
+		if (length == -1) return false;
+		DataInputStream input = connection.input;
+		while (!connection.closed) {
+			int count = input.read(data, offset, length);
+			if (count == -1) break;
+			length -= count;
+			if (length == 0) return !connection.closed;
+			offset += count;
+		}
+		return false;
 	}
 
 	static public String toString (DatagramPacket packet) {

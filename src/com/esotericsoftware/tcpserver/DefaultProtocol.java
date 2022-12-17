@@ -57,16 +57,8 @@ public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 
 			int dataLength = readVarint(input);
 			if (dataLength > 0) {
-				if (connection.closed) break;
 				if (data.length < dataLength) data = new byte[dataLength];
-				int offset = 0, remaining = dataLength;
-				while (true) {
-					int count = input.read(data, offset, remaining);
-					if (count == -1 || connection.closed) break;
-					remaining -= count;
-					if (remaining == 0) break;
-					offset += count;
-				}
+				if (!readFully(connection, data, 0, dataLength)) break;
 			}
 
 			if (TRACE) trace(connection.category, "Received: " + event + ", " + payload + (dataLength > 0 ? ", " + dataLength : ""));
