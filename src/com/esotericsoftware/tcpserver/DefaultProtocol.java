@@ -79,7 +79,7 @@ public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 					sendBlocking(connection, (String)object, null, 0, 0);
 				else {
 					DefaultProtocol.Send send = (DefaultProtocol.Send)object;
-					sendBlocking(connection, send.message, send.bytes, send.offset, send.count);
+					sendBlocking(connection, send.message, send.bytes, 0, send.count);
 				}
 			} catch (InterruptedException ignored) {
 			}
@@ -102,10 +102,11 @@ public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 		}
 
 		if (TRACE) trace(connection.category, "Queued: " + message + ", " + count);
+		byte[] copy = new byte[count];
+		System.arraycopy(bytes, offset, copy, 0, count);
 		DefaultProtocol.Send send = new Send();
 		send.message = message;
-		send.bytes = bytes;
-		send.offset = offset;
+		send.bytes = copy;
 		send.count = count;
 		sends.add(send);
 	}
@@ -139,7 +140,6 @@ public class DefaultProtocol implements ProtocolRead, ProtocolWrite {
 	static class Send {
 		String message;
 		byte[] bytes;
-		int offset;
 		int count;
 	}
 }

@@ -112,8 +112,7 @@ abstract public class Connection implements Closeable {
 		((ProtocolWrite)protocol).send(this, message, bytes, 0, bytes.length);
 	}
 
-	/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
-	 * during the wait.
+	/** Sends the string and bytes without waiting for the send to complete. Most protocols make a copy of the bytes.
 	 * @param bytes May be null if count is 0. */
 	public void send (String message, byte[] bytes, int offset, int count) {
 		((ProtocolWrite)protocol).send(this, message, bytes, offset, count);

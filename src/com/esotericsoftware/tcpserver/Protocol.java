@@ -44,8 +44,7 @@ public interface Protocol {
 		/** Sends the string without waiting for the send to complete. */
 		public void send (Connection connection, String message);
 
-		/** Sends the string and bytes without waiting for the send to complete. The bytes are not copied so should not be modified
-		 * during the wait.
+		/** Sends the string and bytes without waiting for the send to complete. Most protocols make a copy of the bytes.
 		 * @param bytes May be null if count is 0. */
 		public void send (Connection connection, String message, byte[] bytes, int offset, int count);
 
