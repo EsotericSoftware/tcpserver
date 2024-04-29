@@ -30,7 +30,7 @@ import java.net.Socket;
 public class TcpClient extends Retry {
 	private String host;
 	private int port;
-	private final Protocol protocol;
+	private Protocol protocol;
 
 	private int connectTimeout = 10000, readTimeout;
 	volatile ClientConnection connection;
@@ -237,6 +237,14 @@ public class TcpClient extends Retry {
 
 	public void setPort (int port) {
 		this.port = port;
+	}
+
+	public Protocol getProtocol () {
+		return protocol;
+	}
+
+	public void setProtocol (Protocol protocol) {
+		this.protocol = protocol;
 	}
 
 	public int getConnectTimeout () {

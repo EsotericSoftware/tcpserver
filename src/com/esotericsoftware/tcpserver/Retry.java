@@ -29,7 +29,8 @@ public abstract class Retry {
 	boolean daemon;
 	final Object runLock = new Object();
 	volatile Thread retryThread;
-	int retryCount;
+	volatile int retryCount;
+	volatile boolean failed;
 	int[] retryDelays = new int[] {1 * 1000, 3 * 1000, 5 * 1000, 8 * 1000, 13 * 1000};
 
 	public Retry (String category, String name) {
@@ -49,8 +50,18 @@ public abstract class Retry {
 				public void run () {
 					try {
 						initialize();
-						while (running)
+						while (running) {
+							failed = false;
+
 							retry();
+
+							if (failed) {
+								int delay = retryDelays[retryCount % retryDelays.length];
+								if (delay == 0) throw new RuntimeException("Retry thread failed: " + name);
+								retryCount++;
+								sleep(delay);
+							}
+						}
 					} catch (Throwable ex) {
 						throw new RuntimeException("Retry error: " + name, ex);
 					} finally {
@@ -103,22 +114,28 @@ public abstract class Retry {
 	protected void stopped () {
 	}
 
-	/** Subclasses should call this from {@link #retry()} to indicate success, resets the next failure sleep time. */
-	protected void success () {
+	/** Indicates success, resetting the next failure sleep time.
+	 * <p>
+	 * Can be called any time. Subclasses should call this from {@link #retry()} when the try was successful. */
+	public void success () {
 		retryCount = 0;
 	}
 
-	/** Subclasses should call this from {@link #retry()} to indicate failure, sleeps for some time. */
-	protected void failed () {
-		int delay = retryDelays[retryCount % retryDelays.length];
-		if (delay == 0) throw new RuntimeException("Retry thread failed: " + name);
+	/** Inidicates failure so there will be a sleep before the next retry.
+	 * <p>
+	 * Can be called any time. Subclasses should call this from {@link #retry()} when the try was a failure. */
+	public void failed () {
+		failed = true;
+	}
+
+	/** Called on the retry thread to sleep after a failure. */
+	protected void sleep (int millis) {
 		synchronized (runLock) {
 			try {
-				if (running) runLock.wait(delay);
+				if (running) runLock.wait(millis);
 			} catch (InterruptedException ignored) {
 			}
 		}
-		retryCount++;
 	}
 
 	/** The delays to use for repeated failures. If more failures occur than entries, the last entry is used. If a delay is zero,
