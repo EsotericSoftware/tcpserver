@@ -59,7 +59,10 @@ public abstract class Retry {
 								int delay = retryDelays[retryCount % retryDelays.length];
 								if (delay == 0) throw new RuntimeException("Retry thread failed: " + name);
 								retryCount++;
-								sleep(delay);
+								try {
+									sleep(delay);
+								} catch (InterruptedException ignored) {
+								}
 							}
 						}
 					} catch (Throwable ex) {
