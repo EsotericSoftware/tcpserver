@@ -152,7 +152,7 @@ abstract public class Connection implements Closeable {
 	abstract public void receive (String event, String payload, byte[] bytes, int count);
 
 	public void close () {
-		if (INFO && !closed) info(category, "Client disconnected.");
+		if (INFO && !closed) info(category, "Client disconnected: " + socket.getInetAddress() + ":" + socket.getPort());
 		closed = true;
 		if (writeThread != null) writeThread.interrupt();
 		closeQuietly(output);
