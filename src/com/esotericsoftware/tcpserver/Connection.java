@@ -65,7 +65,7 @@ abstract public class Connection implements Closeable {
 
 	void start () {
 		if (protocol instanceof ProtocolRead) {
-			new Thread(name + "Read") {
+			new Thread(name + "-read") {
 				public void run () {
 					try {
 						((ProtocolRead)protocol).readThread(Connection.this);
@@ -88,7 +88,7 @@ abstract public class Connection implements Closeable {
 		}
 
 		if (protocol instanceof ProtocolWrite) {
-			writeThread = new Thread(name + "Write") {
+			writeThread = new Thread(name + "-write") {
 				public void run () {
 					try {
 						((ProtocolWrite)protocol).writeThread(Connection.this);

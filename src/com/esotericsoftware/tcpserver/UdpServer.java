@@ -98,7 +98,8 @@ public abstract class UdpServer extends Retry {
 	}
 
 	public void send (byte[] buffer, InetAddress address, int port) throws IOException {
-		socket.send(new DatagramPacket(buffer, buffer.length, address, port));
+		if (socket == null || !socket.isBound()) throw new IOException("UDP server socket is not bound.");
+		socket.send(new DatagramPacket(buffer, 0, buffer.length, address, port));
 	}
 
 	public int getPort () {
